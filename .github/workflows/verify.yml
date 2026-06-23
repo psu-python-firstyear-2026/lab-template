@@ -1,0 +1,125 @@
+jobs:
+  grade-job:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 1. Получение кода из репозитория
+      uses: actions/checkout@v4
+
+    - name: 2. Установка Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: 3. Установка линтера flake8
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8
+
+    - name: 4. Проверка обязательной структуры README.md и скриншотов
+      run: |
+        # 4.1 Проверка наличия файла
+        if [ ! -f README.md ]; then
+          echo "=========================================================="
+          echo "ОШИБКА: Файл README.md не найден в корне репозитория!"
+          echo "=========================================================="
+          exit 1
+        fi
+
+        # 4.2 Проверка заполнения личных данных
+        if grep -q "\.\.\." README.md; then
+          echo "=========================================================="
+          echo "ОШИБКА: Шаблон README.md не заполнен! Замените троеточия (...) на ФИО."
+          echo "=========================================================="
+          exit 1
+        fi
+
+        # 4.3 Проверка наличия заголовков Заданий, Описаний и Результатов
+        for task_num in 1 2 3 4; do
+          if ! grep -qi "Задание $task_num" README.md; then
+            echo "=========================================================="
+            echo "ОШИБКА: В README.md не найден заголовок 'Задание $task_num'!"
+            echo "=========================================================="
+            exit 1
+          fi
+          if ! grep -qi "Описание" README.md; then
+            echo "=========================================================="
+            echo "ОШИБКА: В README.md под Заданием $task_num должно быть слово 'Описание'!"
+            echo "=========================================================="
+            exit 1
+          fi
+          if ! grep -qi "Результат работы" README.md; then
+            echo "=========================================================="
+            echo "ОШИБКА: В README.md под Заданием $task_num должно быть слово 'Результат работы'!"
+            echo "=========================================================="
+            exit 1
+          fi
+        done
+
+        # 4.4 Проверка наличия ссылок на скриншоты (не менее 1 штуки в файле)
+        if ! grep -q '!\[.*\](.*)' README.md; then
+          echo "=========================================================="
+          echo "ОШИБКА: Вы не вставили скриншот ни в одно из заданий!"
+          echo "Используйте Markdown-тег: ![Экран](имя_файла.png)"
+          echo "=========================================================="
+          exit 1
+        fi
+
+        # 4.5 Проверка физического наличия картинок в репозитории
+        IMAGE_COUNT=$(find . -maxdepth 2 -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" | wc -l)
+        if [ "$IMAGE_COUNT" -eq 0 ]; then
+          echo "=========================================================="
+          echo "ОШИБКА: Вы не загрузили файлы скриншотов в свой репозиторий GitHub!"
+          echo "=========================================================="
+          exit 1
+        fi
+
+        echo "Структура README.md и скриншоты успешно проверены!"
+
+    - name: 5. Проверка синтаксиса и стиля кода PEP 8 (Линтер)
+      run: |
+        ERROR_FOUND=0
+        for file in task1.py task2.py task3.py task4.py; do
+          if [ -f "$file" ]; then
+            echo "Проверка стиля файла $file..."
+            if ! python -m py_compile "$file" || ! flake8 "$file" --ignore=E501; then
+              echo "=========================================================="
+              echo "ОШИБКА: В файле $file найдены ошибки синтаксиса или PEP 8!"
+              echo "=========================================================="
+              ERROR_FOUND=1
+            fi
+          fi
+        done
+        if [ $ERROR_FOUND -ne 0 ]; then
+          exit 1
+        fi
+        echo "Все существующие файлы написаны чисто!"
+
+    - name: 6. Подсчет баллов за выполненные задания
+      run: |
+        TOTAL_SCORE=0
+
+        check_task() {
+          local file=$1
+          local points=$2
+          if [ -f "$file" ] && [ $(wc -c < "$file") -gt 50 ]; then
+            TOTAL_SCORE=$((TOTAL_SCORE + points))
+            echo "Файл $file успешно выполнен: +$points баллов"
+          else
+            echo "Файл $file отсутствует или не заполнено"
+          fi
+        }
+
+        check_task "task1.py" 20
+        check_task "task2.py" 25
+        check_task "task3.py" 25
+        check_task "task4.py" 30
+
+        echo "Итоговый балл за работу: $TOTAL_SCORE из 100"
+        echo "FINAL_GRADE=$TOTAL_SCORE" >> $GITHUB_ENV
+
+    - name: 7. Отправка оценки в Google Classroom
+      if: success()
+      run: |
+        curl -X POST "https://google.com" \
+        -H "Content-Type: application/json" \
+        -d '{"email": "${{ github.actor }}@university.edu", "grade": '${{ env.FINAL_GRADE }}'}'
