@@ -122,4 +122,8 @@ jobs:
       run: |
         curl -X POST "https://script.google.com/macros/s/AKfycbwgpdE0O6YyIrr2VNITwBgZ5nAUb8XfwvqfcJPxLsXqagz8utqcjOx6axhxQf4u9CF1xg/exec" \
         -H "Content-Type: application/json" \
-        -d '{"email": "${{ github.actor }}@psu.by", "grade": '${{ env.FINAL_GRADE }}, "repo": "${{ github.event.repository.name }}"'}'
+        -d '{
+          "email": "${{ github.actor }}@psu.by", 
+          "grade": ${{ env.FINAL_GRADE }},
+          "repo": "${{ github.event.repository.name }}"
+        }'
